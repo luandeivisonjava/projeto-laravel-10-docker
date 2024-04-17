@@ -2,22 +2,38 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\DTO\Supports\CreateSupportDto;
+use App\DTO\Supports\UpdateSupportDto;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreUpdateSupport;
 use App\Models\Support;
+use App\Services\SupportService;
 use Illuminate\Http\Request;
 
 class SupportController extends Controller
 {
-    public function index(Support $support)
+    public function __construct(
+        protected SupportService $service
+    )
     {
-        $supports = $support->all();
 
-        return view('admin/supports/index', compact('supports'));
+    }
+    public function index(Request $request)
+    {
+        $supports = $this->service->paginate(
+            page: $request->get("page",1),
+            totalPerPage: $request->get('per_page',3),
+            filter: $request->filter,
+
+        );
+
+        $filters = ['filter' => $request->get('filter', '')];
+
+        return view('admin/supports/index', compact('supports', 'filters'));
     }
 
-    public function show(string | int $id){
-        if(!$support = Support::find($id)){
+    public function show(string  $id){
+        if(!$support = $this->service->findOne($id)){
             return redirect()->back();
         };
         return view('admin/supports/show', compact('support'));
@@ -28,36 +44,28 @@ class SupportController extends Controller
     }
 
     public function store(StoreUpdateSupport $request, Support $support){
-        $data = $request->all();
-        $data ['status'] = 'a';
-
-        $support->create($data);
+       $this->service->new(CreateSupportDto::makeFromRequest($request));
         return redirect()->route('supports.index');
     }
 
-    public function edit(Support $support, string | int $id){
-        if(!$support = $support->where('id',$id)->first()){
+    public function edit(string $id){
+        if(!$support = $this->service->findOne($id)){
             return redirect()->back();
         }
         return view('admin/supports.edit', compact('support'));
     }
 
     public function update(StoreUpdateSupport $request, Support $support, string | int $id){
-        if(!$support = $support->find($id)){
+        $support = $this->service->update(UpdateSupportDto::makeFromRequest($request));
+        if(!$support){
             return redirect()->back();
         }
-        $support->update($request->only([
-            'subject',
-            'body'
-        ]));
+
         return redirect()->route('supports.index');
     }
 
-    public function destroy(Support $support, string | int $id){
-        if(!$support = $support->find($id)){
-            return redirect()->back();
-        }
-        $support->delete();
+    public function destroy(string $id){
+        $this->service->delete($id);
         return redirect()->route('supports.index');
     }
 }
